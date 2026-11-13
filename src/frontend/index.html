@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consola de la tienda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #EDF0F3;
+    --superficie: #FFFFFF;
+    --tinta: #1B2430;
+    --tinta-suave: #5A6573;
+    --linea: #D3D9E0;
+    --accion: #2B5C85;
+    --accion-hover: #224A6B;
+    --ok: #2F7A4D;
+    --aviso: #A8620A;
+    --error: #B02A22;
+    --get: #2B5C85;
+    --post: #2F7A4D;
+    --delete: #B02A22;
+    --radio: 6px;
+    --sans: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--papel);
+    color: var(--tinta);
+    font: 400 15px/1.5 var(--sans);
+  }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accion); outline-offset: 2px; }
+
+  /* ---------- Cabecera ---------- */
+  .cabecera {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;
+    padding: 14px 24px;
+    background: var(--tinta); color: #fff;
+  }
+  .cabecera h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+  .conexion { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .conexion label { font-size: 13px; color: #C5CDD7; }
+  .conexion input {
+    width: 250px; max-width: 100%;
+    padding: 6px 10px; border: 1px solid #3A4656; border-radius: var(--radio);
+    background: #263140; color: #fff; font-family: var(--mono); font-size: 13px;
+  }
+  .estado { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #C5CDD7; }
+  .estado::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #7B8694; }
+  .estado[data-estado="ok"]::before { background: #4CC27C; }
+  .estado[data-estado="error"]::before { background: #F06B60; }
+
+  /* ---------- Estructura ---------- */
+  .marco {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 24px;
+    max-width: 1320px; margin: 0 auto; padding: 24px;
+  }
+  @media (max-width: 960px) {
+    .marco { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+    .cabecera { padding: 14px 16px; }
+    .conexion { margin-left: 0; }
+  }
+
+  /* ---------- Pestañas ---------- */
+  .pestanas { display: flex; gap: 4px; border-bottom: 1px solid var(--linea); margin-bottom: 20px; overflow-x: auto; }
+  .pestanas button {
+    border: 0; background: none; cursor: pointer; white-space: nowrap;
+    padding: 10px 14px; font-weight: 600; color: var(--tinta-suave);
+    border-bottom: 3px solid transparent; margin-bottom: -1px;
+  }
+  .pestanas button[aria-selected="true"] { color: var(--tinta); border-bottom-color: var(--accion); }
+  .pestanas button:hover { color: var(--tinta); }
+
+  .panel[hidden] { display: none; }
+  .panel h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.015em; }
+  .panel .ayuda { margin: 0 0 18px; color: var(--tinta-suave); max-width: 70ch; }
+
+  .dos-columnas { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+  @media (max-width: 1180px) { .dos-columnas { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ---------- Tablas ---------- */
+  .tabla-envoltorio { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--radio); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  th { font-size: 13px; font-weight: 600; color: var(--tinta-suave); background: #F6F8FA; }
+  tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .vacio { padding: 28px 16px; text-align: center; color: var(--tinta-suave); }
+  .etiqueta-tipo { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; background: #E3E9EF; }
+  .stock-bajo { color: var(--error); font-weight: 600; }
+  .id-corto { font-family: var(--mono); font-size: 12px; color: var(--tinta-suave); }
+
+  .barra-tabla { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+
+  /* ---------- Formularios ---------- */
+  .formulario {
+    background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--radio);
+    padding: 16px; display: grid; gap: 12px;
+  }
+  .formulario h3 { margin: 0; font-size: 16px; }
+  .campo { display: grid; gap: 4px; }
+  .campo label { font-size: 13px; font-weight: 600; }
+  .campo input, .campo select, .barra-tabla select {
+    padding: 8px 10px; border: 1px solid var(--linea); border-radius: var(--radio); background: #fff; min-width: 0;
+  }
+  .fila-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .boton {
+    border: 0; border-radius: var(--radio); cursor: pointer;
+    padding: 9px 14px; font-weight: 600; background: var(--accion); color: #fff;
+  }
+  .boton:hover { background: var(--accion-hover); }
+  .boton:disabled { opacity: .5; cursor: not-allowed; }
+  .boton-secundario { background: #E3E9EF; color: var(--tinta); }
+  .boton-secundario:hover { background: #D3DBE4; }
+  .boton-peligro {
+    border: 0; border-radius: var(--radio); cursor: pointer;
+    background: none; color: var(--error); padding: 4px 8px; font-weight: 600;
+  }
+  .boton-peligro:hover { background: #F8E3E1; }
+
+  .mensaje { margin: 0; padding: 8px 10px; border-radius: var(--radio); font-size: 14px; }
+  .mensaje:empty { display: none; }
+  .mensaje.ok { background: #E3F1E8; color: var(--ok); }
+  .mensaje.error { background: #F8E3E1; color: var(--error); }
+
+  /* ---------- Pedido ---------- */
+  .lineas-pedido { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .lineas-pedido li {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 8px 10px; background: #F6F8FA; border-radius: var(--radio);
+  }
+  .total { display: flex; justify-content: space-between; font-weight: 700; font-size: 17px; padding-top: 6px; border-top: 1px solid var(--linea); }
+
+  .pedido { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--radio); margin-bottom: 14px; }
+  .pedido header { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--linea); }
+  .pedido header strong { font-size: 15px; }
+  .pedido header span { color: var(--tinta-suave); font-size: 14px; }
+
+  /* ---------- Registro de peticiones ---------- */
+  .registro {
+    position: sticky; top: 24px; align-self: start;
+    background: var(--tinta); color: #DCE3EA; border-radius: var(--radio);
+    max-height: calc(100vh - 48px); display: flex; flex-direction: column;
+  }
+  @media (max-width: 960px) { .registro { position: static; max-height: 420px; } }
+  .registro header { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 16px 10px; }
+  .registro h2 { margin: 0; font-size: 16px; color: #fff; }
+  .registro p { margin: 0 16px 10px; font-size: 13px; color: #93A0AE; }
+  .registro ol { list-style: none; margin: 0; padding: 0 8px 12px; overflow-y: auto; font-family: var(--mono); font-size: 12.5px; }
+  .registro li { padding: 8px; border-top: 1px solid #2C3846; display: grid; grid-template-columns: 56px 1fr auto; gap: 2px 8px; }
+  .registro li:first-child { border-top: 0; }
+  .registro .metodo { font-weight: 500; }
+  .registro .metodo.GET { color: #8EC1EA; }
+  .registro .metodo.POST { color: #86D3A4; }
+  .registro .metodo.DELETE { color: #F2938B; }
+  .registro .ruta { word-break: break-all; color: #fff; }
+  .registro .codigo { font-weight: 500; }
+  .registro .codigo.c2 { color: #86D3A4; }
+  .registro .codigo.c4 { color: #F2C37A; }
+  .registro .codigo.c5, .registro .codigo.c0 { color: #F2938B; }
+  .registro .detalle { grid-column: 2 / -1; color: #93A0AE; }
+  .registro .cuerpo { grid-column: 2 / -1; color: #B9C4CF; white-space: pre-wrap; word-break: break-word; }
+  .registro .boton-limpiar { background: none; border: 0; color: #93A0AE; cursor: pointer; font-size: 13px; }
+  .registro .boton-limpiar:hover { color: #fff; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .registro li.nueva { animation: aparecer .5s ease-out; }
+    @keyframes aparecer { from { background: #2B3B4E; } to { background: transparent; } }
+  }
+</style>
+</head>
+<body>
+
+<header class="cabecera">
+  <h1>Tienda online</h1>
+  <form class="conexion" id="form-conexion">
+    <label for="api-url">Dirección de la API</label>
+    <input id="api-url" type="url" required spellcheck="false">
+    <button class="boton" type="submit">Conectar</button>
+    <span class="estado" id="estado-conexion" aria-live="polite">Sin comprobar</span>
+  </form>
+</header>
+
+<div class="marco">
+  <main>
+    <nav class="pestanas" role="tablist" aria-label="Secciones">
+      <button role="tab" aria-selected="true"  aria-controls="panel-productos" id="tab-productos">Productos</button>
+      <button role="tab" aria-selected="false" aria-controls="panel-usuarios"  id="tab-usuarios">Usuarios</button>
+      <button role="tab" aria-selected="false" aria-controls="panel-pedido"    id="tab-pedido">Nuevo pedido</button>
+      <button role="tab" aria-selected="false" aria-controls="panel-historial" id="tab-historial">Historial de pedidos</button>
+    </nav>
+
+    <!-- ================= PRODUCTOS ================= -->
+    <section class="panel" id="panel-productos" role="tabpanel" aria-labelledby="tab-productos">
+      <h2>Productos</h2>
+      <p class="ayuda">Inventario de la tienda. Los productos se crean y eliminan directamente en la API.</p>
+      <div class="dos-columnas">
+        <div>
+          <div class="barra-tabla">
+            <label for="filtro-tipo">Mostrar</label>
+            <select id="filtro-tipo">
+              <option value="">Todos los tipos</option>
+              <option value="generico">Genéricos</option>
+              <option value="electronico">Electrónica</option>
+              <option value="ropa">Ropa</option>
+            </select>
+          </div>
+          <div class="tabla-envoltorio">
+            <table>
+              <thead><tr><th>Producto</th><th>Tipo</th><th>Detalles</th><th class="num">Precio</th><th class="num">Stock</th><th></th></tr></thead>
+              <tbody id="tabla-productos"></tbody>
+            </table>
+          </div>
+          <p class="mensaje" id="msg-lista-productos" role="status"></p>
+        </div>
+
+        <form class="formulario" id="form-producto" novalidate>
+          <h3>Añadir producto</h3>
+          <div class="campo">
+            <label for="prod-tipo">Tipo</label>
+            <select id="prod-tipo" name="tipo">
+              <option value="generico">Genérico</option>
+              <option value="electronico">Electrónico</option>
+              <option value="ropa">Ropa</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="prod-nombre">Nombre</label>
+            <input id="prod-nombre" name="nombre" required>
+          </div>
+          <div class="fila-campos">
+            <div class="campo">
+              <label for="prod-precio">Precio (€)</label>
+              <input id="prod-precio" name="precio" type="number" min="0" step="0.01" required>
+            </div>
+            <div class="campo">
+              <label for="prod-stock">Stock</label>
+              <input id="prod-stock" name="stock" type="number" min="0" step="1" required>
+            </div>
+          </div>
+          <div class="campo" data-solo="electronico" hidden>
+            <label for="prod-garantia">Meses de garantía</label>
+            <input id="prod-garantia" name="meses_garantia" type="number" min="0" step="1">
+          </div>
+          <div class="fila-campos" data-solo="ropa" hidden>
+            <div class="campo">
+              <label for="prod-talla">Talla</label>
+              <input id="prod-talla" name="talla">
+            </div>
+            <div class="campo">
+              <label for="prod-color">Color</label>
+              <input id="prod-color" name="color">
+            </div>
+          </div>
+          <button class="boton" type="submit">Añadir producto</button>
+          <p class="mensaje" id="msg-producto" role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- ================= USUARIOS ================= -->
+    <section class="panel" id="panel-usuarios" role="tabpanel" aria-labelledby="tab-usuarios" hidden>
+      <h2>Usuarios</h2>
+      <p class="ayuda">Clientes y administradores registrados. Solo los clientes pueden hacer pedidos.</p>
+      <div class="dos-columnas">
+        <div>
+          <div class="tabla-envoltorio">
+            <table>
+              <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Id</th></tr></thead>
+              <tbody id="tabla-usuarios"></tbody>
+            </table>
+          </div>
+          <p class="mensaje" id="msg-lista-usuarios" role="status"></p>
+        </div>
+
+        <form class="formulario" id="form-usuario" novalidate>
+          <h3>Registrar usuario</h3>
+          <div class="campo">
+            <label for="usu-tipo">Rol</label>
+            <select id="usu-tipo" name="tipo">
+              <option value="cliente">Cliente</option>
+              <option value="administrador">Administrador</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="usu-nombre">Nombre</label>
+            <input id="usu-nombre" name="nombre" required>
+          </div>
+          <div class="campo">
+            <label for="usu-email">Email</label>
+            <input id="usu-email" name="email" type="email" required>
+          </div>
+          <div class="campo" data-solo-cliente>
+            <label for="usu-direccion">Dirección de envío</label>
+            <input id="usu-direccion" name="direccion">
+          </div>
+          <button class="boton" type="submit">Registrar usuario</button>
+          <p class="mensaje" id="msg-usuario" role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- ================= NUEVO PEDIDO ================= -->
+    <section class="panel" id="panel-pedido" role="tabpanel" aria-labelledby="tab-pedido" hidden>
+      <h2>Nuevo pedido</h2>
+      <p class="ayuda">Elige el cliente, añade productos y realiza el pedido. La API comprueba el stock y lo descuenta.</p>
+      <div class="dos-columnas">
+        <form class="formulario" id="form-linea" novalidate>
+          <div class="campo">
+            <label for="ped-cliente">Cliente</label>
+            <select id="ped-cliente"></select>
+          </div>
+          <div class="fila-campos" style="grid-template-columns: 1fr 90px;">
+            <div class="campo">
+              <label for="ped-producto">Producto</label>
+              <select id="ped-producto"></select>
+            </div>
+            <div class="campo">
+              <label for="ped-cantidad">Cantidad</label>
+              <input id="ped-cantidad" type="number" min="1" step="1" value="1">
+            </div>
+          </div>
+          <button class="boton boton-secundario" type="submit">Añadir al pedido</button>
+        </form>
+
+        <div class="formulario">
+          <h3>Resumen</h3>
+          <ul class="lineas-pedido" id="lineas-pedido"></ul>
+          <div class="total"><span>Total estimado</span><span id="total-pedido">0,00 €</span></div>
+          <button class="boton" id="boton-realizar" type="button" disabled>Realizar pedido</button>
+          <p class="mensaje" id="msg-pedido" role="status"></p>
+        </div>
+      </div>
+      <div id="pedido-realizado"></div>
+    </section>
+
+    <!-- ================= HISTORIAL ================= -->
+    <section class="panel" id="panel-historial" role="tabpanel" aria-labelledby="tab-historial" hidden>
+      <h2>Historial de pedidos</h2>
+      <p class="ayuda">Pedidos de un cliente, del más antiguo al más reciente.</p>
+      <div class="barra-tabla">
+        <label for="hist-cliente">Cliente</label>
+        <select id="hist-cliente"></select>
+      </div>
+      <p class="mensaje" id="msg-historial" role="status"></p>
+      <div id="lista-historial"></div>
+    </section>
+  </main>
+
+  <!-- ================= REGISTRO DE PETICIONES ================= -->
+  <aside class="registro" aria-label="Peticiones HTTP">
+    <header>
+      <h2>Peticiones HTTP</h2>
+      <button class="boton-limpiar" id="limpiar-registro" type="button">Limpiar</button>
+    </header>
+    <p>Cada acción de la página es una petición a la API. Aquí ves el método, el endpoint y el código de respuesta.</p>
+    <ol id="lista-registro" aria-live="polite"></ol>
+  </aside>
+</div>
+
+<script>
+/* =====================================================================
+   1. CONFIGURACIÓN
+   La dirección de la API se puede cambiar en la cabecera (por ejemplo
+   http://192.168.1.34:8000 para usar la API del equipo de un compañero).
+   Se recuerda en el navegador para no tener que escribirla cada vez.
+   ===================================================================== */
+const URL_POR_DEFECTO = "http://localhost:8000";
+let API_URL = leerUrlGuardada() || URL_POR_DEFECTO;
+
+function leerUrlGuardada() {
+  try { return localStorage.getItem("tienda-api-url"); } catch { return null; }
+}
+function guardarUrl(url) {
+  try { localStorage.setItem("tienda-api-url", url); } catch { /* sin almacenamiento */ }
+}
+
+
+/* =====================================================================
+   2. CAPA DE ACCESO A LA API
+   Este es el ÚNICO sitio donde se hacen peticiones HTTP. Toda la página
+   usa las funciones del objeto `api`, que llaman a `llamarApi`.
+   ===================================================================== */
+
+class ErrorApi extends Error {
+  constructor(codigo, mensaje) { super(mensaje); this.codigo = codigo; }
+}
+
+/**
+ * Hace una petición a la API con fetch y devuelve el JSON de la respuesta.
+ * - metodo: "GET", "POST" o "DELETE"
+ * - ruta:   endpoint, por ejemplo "/productos"
+ * - cuerpo: objeto que se envía como JSON (solo en POST)
+ * Si el código HTTP no es 2xx lanza un ErrorApi con el mensaje de "detail".
+ */
+async function llamarApi(metodo, ruta, cuerpo) {
+  const opciones = { method: metodo, headers: {} };
+  if (cuerpo !== undefined) {
+    opciones.headers["Content-Type"] = "application/json";
+    opciones.body = JSON.stringify(cuerpo);
+  }
+
+  const inicio = performance.now();
+  let respuesta;
+  try {
+    respuesta = await fetch(API_URL + ruta, opciones);          // <-- petición HTTP
+  } catch {
+    registrarPeticion(metodo, ruta, 0, performance.now() - inicio, "Sin conexión con la API", cuerpo);
+    throw new ErrorApi(0, `No se puede conectar con ${API_URL}. Comprueba que el servidor está arrancado y la dirección es correcta.`);
+  }
+
+  // 204 No Content no trae cuerpo; el resto devuelve JSON
+  const datos = respuesta.status === 204 ? null : await respuesta.json().catch(() => null);
+  const ok = respuesta.ok;
+  registrarPeticion(metodo, ruta, respuesta.status, performance.now() - inicio, ok ? null : textoError(datos), cuerpo);
+
+  if (!ok) throw new ErrorApi(respuesta.status, textoError(datos));
+  return datos;
+}
+
+/** Convierte el "detail" de un error de FastAPI en un texto legible. */
+function textoError(datos) {
+  const detalle = datos && datos.detail;
+  if (Array.isArray(detalle)) {           // errores de validación (422)
+    return detalle.map(e => String(e.msg).replace(/^Value error, /, "")).join(" ");
+  }
+  return detalle || "Error desconocido";
+}
+
+/* Una función por endpoint de la API */
+const api = {
+  comprobar:          ()            => llamarApi("GET",    "/"),
+  listarProductos:    (tipo)        => llamarApi("GET",    "/productos" + (tipo ? `?tipo=${encodeURIComponent(tipo)}` : "")),
+  crearProducto:      (datos)       => llamarApi("POST",   "/productos", datos),
+  eliminarProducto:   (id)          => llamarApi("DELETE", `/productos/${encodeURIComponent(id)}`),
+  listarUsuarios:     ()            => llamarApi("GET",    "/usuarios"),
+  crearUsuario:       (datos)       => llamarApi("POST",   "/usuarios", datos),
+  crearPedido:        (datos)       => llamarApi("POST",   "/pedidos", datos),
+  pedidosDeCliente:   (clienteId)   => llamarApi("GET",    `/usuarios/${encodeURIComponent(clienteId)}/pedidos`),
+};
+
+
+/* =====================================================================
+   3. INTERFAZ
+   A partir de aquí solo se pinta la página con los datos recibidos.
+   ===================================================================== */
+
+const $ = (sel) => document.querySelector(sel);
+const euros = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
+const fechaLarga = new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" });
+const NOMBRE_TIPO = { generico: "Genérico", electronico: "Electrónico", ropa: "Ropa" };
+
+let productos = [];   // último listado recibido
+let usuarios = [];
+let lineasPedido = []; // [{producto, cantidad}]
+
+function esc(texto) {
+  return String(texto ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function mostrarMensaje(id, texto, tipo) {
+  const el = document.getElementById(id);
+  el.textContent = texto || "";
+  el.className = "mensaje" + (texto ? " " + tipo : "");
+}
+
+/* ---------- Registro de peticiones ---------- */
+function registrarPeticion(metodo, ruta, codigo, ms, error, cuerpo) {
+  const li = document.createElement("li");
+  li.className = "nueva";
+  const clase = "c" + String(codigo).charAt(0);
+  li.innerHTML = `
+    <span class="metodo ${esc(metodo)}">${esc(metodo)}</span>
+    <span class="ruta">${esc(ruta)}</span>
+    <span class="codigo ${clase}">${codigo || "—"}</span>
+    ${cuerpo !== undefined ? `<span class="cuerpo">${esc(JSON.stringify(cuerpo))}</span>` : ""}
+    <span class="detalle">${error ? esc(error) : Math.round(ms) + " ms"}</span>`;
+  const lista = $("#lista-registro");
+  lista.prepend(li);
+  while (lista.children.length > 60) lista.lastElementChild.remove();
+}
+$("#limpiar-registro").addEventListener("click", () => { $("#lista-registro").innerHTML = ""; });
+
+/* ---------- Conexión ---------- */
+async function conectar() {
+  const estado = $("#estado-conexion");
+  estado.textContent = "Comprobando…"; estado.dataset.estado = "";
+  try {
+    await api.comprobar();
+    estado.textContent = "Conectada"; estado.dataset.estado = "ok";
+    await Promise.all([cargarProductos(), cargarUsuarios()]);
+  } catch (e) {
+    estado.textContent = "Sin conexión"; estado.dataset.estado = "error";
+    mostrarMensaje("msg-lista-productos", e.message, "error");
+  }
+}
+$("#api-url").value = API_URL;
+$("#form-conexion").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  API_URL = $("#api-url").value.trim().replace(/\/+$/, "");
+  guardarUrl(API_URL);
+  conectar();
+});
+
+/* ---------- Pestañas ---------- */
+const pestanas = document.querySelectorAll('[role="tab"]');
+pestanas.forEach(tab => tab.addEventListener("click", () => {
+  pestanas.forEach(t => {
+    const activa = t === tab;
+    t.setAttribute("aria-selected", activa);
+    document.getElementById(t.getAttribute("aria-controls")).hidden = !activa;
+  });
+  // Al cambiar de pestaña se vuelven a pedir los datos a la API, así se ven
+  // los cambios hechos desde otros clientes (/docs, cliente Python...)
+  if (tab.id === "tab-productos") cargarProductos();
+  if (tab.id === "tab-usuarios") cargarUsuarios();
+  if (tab.id === "tab-pedido") { cargarProductos(); cargarUsuarios(); }
+  if (tab.id === "tab-historial") cargarUsuarios().then(cargarHistorial);
+}));
+
+/* ---------- Productos ---------- */
+async function cargarProductos() {
+  mostrarMensaje("msg-lista-productos", "");
+  try {
+    productos = await api.listarProductos($("#filtro-tipo").value);
+    pintarProductos();
+    pintarSelectorProductos();
+  } catch (e) {
+    mostrarMensaje("msg-lista-productos", e.message, "error");
+  }
+}
+
+function pintarProductos() {
+  const cuerpo = $("#tabla-productos");
+  if (productos.length === 0) {
+    cuerpo.innerHTML = `<tr><td colspan="6" class="vacio">No hay productos. Añade el primero con el formulario.</td></tr>`;
+    return;
+  }
+  cuerpo.innerHTML = productos.map(p => {
+    let detalles = "";
+    if (p.tipo === "electronico") detalles = `${p.meses_garantia} meses de garantía`;
+    if (p.tipo === "ropa") detalles = `Talla ${esc(p.talla)}, ${esc(p.color)}`;
+    return `<tr>
+      <td>${esc(p.nombre)}<br><span class="id-corto">${esc(p.id.slice(0, 8))}</span></td>
+      <td><span class="etiqueta-tipo">${NOMBRE_TIPO[p.tipo]}</span></td>
+      <td>${detalles}</td>
+      <td class="num">${euros.format(p.precio)}</td>
+      <td class="num ${p.stock === 0 ? "stock-bajo" : ""}">${p.stock}</td>
+      <td><button class="boton-peligro" data-eliminar="${esc(p.id)}" aria-label="Eliminar ${esc(p.nombre)}">Eliminar</button></td>
+    </tr>`;
+  }).join("");
+}
+
+$("#filtro-tipo").addEventListener("change", cargarProductos);
+
+$("#tabla-productos").addEventListener("click", async (ev) => {
+  const id = ev.target.dataset.eliminar;
+  if (!id) return;
+  try {
+    await api.eliminarProducto(id);
+    lineasPedido = lineasPedido.filter(l => l.producto.id !== id);
+    pintarLineasPedido();
+    await cargarProductos();
+    mostrarMensaje("msg-lista-productos", "Producto eliminado.", "ok");
+  } catch (e) {
+    mostrarMensaje("msg-lista-productos", e.message, "error");
+  }
+});
+
+// Mostrar solo los campos del tipo elegido
+function actualizarCamposProducto() {
+  const tipo = $("#prod-tipo").value;
+  document.querySelectorAll("#form-producto [data-solo]").forEach(el => {
+    el.hidden = el.dataset.solo !== tipo;
+  });
+}
+$("#prod-tipo").addEventListener("change", actualizarCamposProducto);
+
+$("#form-producto").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const tipo = f.tipo.value;
+  const datos = {
+    tipo,
+    nombre: f.nombre.value,
+    precio: f.precio.value === "" ? null : Number(f.precio.value),
+    stock: f.stock.value === "" ? null : Number(f.stock.value),
+  };
+  if (tipo === "electronico") datos.meses_garantia = f.meses_garantia.value === "" ? null : Number(f.meses_garantia.value);
+  if (tipo === "ropa") { datos.talla = f.talla.value || null; datos.color = f.color.value || null; }
+
+  try {
+    const creado = await api.crearProducto(datos);
+    mostrarMensaje("msg-producto", `Producto añadido: ${creado.nombre}.`, "ok");
+    f.reset(); actualizarCamposProducto();
+    await cargarProductos();
+  } catch (e) {
+    mostrarMensaje("msg-producto", e.message, "error");
+  }
+});
+
+/* ---------- Usuarios ---------- */
+async function cargarUsuarios() {
+  mostrarMensaje("msg-lista-usuarios", "");
+  try {
+    usuarios = await api.listarUsuarios();
+    pintarUsuarios();
+    pintarSelectoresClientes();
+  } catch (e) {
+    mostrarMensaje("msg-lista-usuarios", e.message, "error");
+  }
+}
+
+function pintarUsuarios() {
+  const cuerpo = $("#tabla-usuarios");
+  if (usuarios.length === 0) {
+    cuerpo.innerHTML = `<tr><td colspan="4" class="vacio">No hay usuarios. Registra el primero con el formulario.</td></tr>`;
+    return;
+  }
+  cuerpo.innerHTML = usuarios.map(u => `<tr>
+    <td>${esc(u.nombre)}</td>
+    <td>${esc(u.email)}</td>
+    <td>${u.es_admin ? "Administrador" : "Cliente"}</td>
+    <td><span class="id-corto">${esc(u.id.slice(0, 8))}</span></td>
+  </tr>`).join("");
+}
+
+$("#usu-tipo").addEventListener("change", () => {
+  $("[data-solo-cliente]").hidden = $("#usu-tipo").value !== "cliente";
+});
+
+$("#form-usuario").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const datos = {
+    tipo: f.tipo.value,
+    nombre: f.nombre.value,
+    email: f.email.value,
+    direccion: f.tipo.value === "cliente" ? (f.direccion.value || null) : null,
+  };
+  try {
+    const creado = await api.crearUsuario(datos);
+    mostrarMensaje("msg-usuario", `Usuario registrado: ${creado.nombre}.`, "ok");
+    f.reset(); $("[data-solo-cliente]").hidden = false;
+    await cargarUsuarios();
+  } catch (e) {
+    mostrarMensaje("msg-usuario", e.message, "error");
+  }
+});
+
+/* ---------- Selectores compartidos ---------- */
+function pintarSelectoresClientes() {
+  const clientes = usuarios.filter(u => !u.es_admin);
+  const opciones = clientes.length
+    ? clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nombre)} (${esc(c.email)})</option>`).join("")
+    : `<option value="">No hay clientes registrados</option>`;
+  for (const id of ["#ped-cliente", "#hist-cliente"]) {
+    const sel = $(id), anterior = sel.value;
+    sel.innerHTML = opciones;
+    if (clientes.some(c => c.id === anterior)) sel.value = anterior;
+  }
+  actualizarBotonPedido();
+}
+
+function pintarSelectorProductos() {
+  const sel = $("#ped-producto"), anterior = sel.value;
+  sel.innerHTML = productos.length
+    ? productos.map(p => `<option value="${esc(p.id)}" ${p.stock === 0 ? "disabled" : ""}>${esc(p.nombre)} (${euros.format(p.precio)}, stock ${p.stock})</option>`).join("")
+    : `<option value="">No hay productos</option>`;
+  if (productos.some(p => p.id === anterior)) sel.value = anterior;
+}
+
+/* ---------- Nuevo pedido ---------- */
+$("#form-linea").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  mostrarMensaje("msg-pedido", "");
+  const producto = productos.find(p => p.id === $("#ped-producto").value);
+  const cantidad = Number($("#ped-cantidad").value);
+  if (!producto) return mostrarMensaje("msg-pedido", "Elige un producto.", "error");
+  if (!Number.isInteger(cantidad) || cantidad < 1) return mostrarMensaje("msg-pedido", "La cantidad debe ser un número entero mayor que 0.", "error");
+
+  const existente = lineasPedido.find(l => l.producto.id === producto.id);
+  if (existente) existente.cantidad += cantidad;
+  else lineasPedido.push({ producto, cantidad });
+  pintarLineasPedido();
+});
+
+function pintarLineasPedido() {
+  const lista = $("#lineas-pedido");
+  if (lineasPedido.length === 0) {
+    lista.innerHTML = `<li class="vacio" style="background:none">Añade productos para empezar el pedido.</li>`;
+  } else {
+    lista.innerHTML = lineasPedido.map((l, i) => `<li>
+      <span>${esc(l.producto.nombre)} × ${l.cantidad}</span>
+      <span>${euros.format(l.producto.precio * l.cantidad)}
+        <button class="boton-peligro" data-quitar="${i}" aria-label="Quitar ${esc(l.producto.nombre)}">Quitar</button></span>
+    </li>`).join("");
+  }
+  const total = lineasPedido.reduce((s, l) => s + l.producto.precio * l.cantidad, 0);
+  $("#total-pedido").textContent = euros.format(total);
+  actualizarBotonPedido();
+}
+
+$("#lineas-pedido").addEventListener("click", (ev) => {
+  const i = ev.target.dataset.quitar;
+  if (i === undefined) return;
+  lineasPedido.splice(Number(i), 1);
+  pintarLineasPedido();
+});
+
+function actualizarBotonPedido() {
+  $("#boton-realizar").disabled = lineasPedido.length === 0 || !$("#ped-cliente").value;
+}
+
+$("#boton-realizar").addEventListener("click", async () => {
+  const datos = {
+    cliente_id: $("#ped-cliente").value,
+    items: lineasPedido.map(l => ({ producto_id: l.producto.id, cantidad: l.cantidad })),
+  };
+  try {
+    const pedido = await api.crearPedido(datos);
+    mostrarMensaje("msg-pedido", `Pedido realizado. Total: ${euros.format(pedido.total)}.`, "ok");
+    $("#pedido-realizado").innerHTML = htmlPedido(pedido);
+    lineasPedido = [];
+    pintarLineasPedido();
+    await cargarProductos();   // el stock ha cambiado
+  } catch (e) {
+    mostrarMensaje("msg-pedido", e.message, "error");
+  }
+});
+
+/* ---------- Historial ---------- */
+async function cargarHistorial() {
+  const clienteId = $("#hist-cliente").value;
+  const contenedor = $("#lista-historial");
+  mostrarMensaje("msg-historial", "");
+  if (!clienteId) { contenedor.innerHTML = ""; return; }
+  try {
+    const pedidos = await api.pedidosDeCliente(clienteId);
+    contenedor.innerHTML = pedidos.length
+      ? pedidos.map(htmlPedido).join("")
+      : `<p class="vacio">Este cliente todavía no ha hecho ningún pedido.</p>`;
+  } catch (e) {
+    mostrarMensaje("msg-historial", e.message, "error");
+  }
+}
+$("#hist-cliente").addEventListener("change", cargarHistorial);
+
+function htmlPedido(p) {
+  const filas = p.items.map(i => `<tr>
+    <td>${esc(i.nombre)}</td>
+    <td class="num">${i.cantidad}</td>
+    <td class="num">${euros.format(i.precio_unitario)}</td>
+    <td class="num">${euros.format(i.subtotal)}</td>
+  </tr>`).join("");
+  return `<article class="pedido">
+    <header>
+      <strong>Pedido ${esc(p.id.slice(0, 8))} de ${esc(p.cliente.nombre)}</strong>
+      <span>${fechaLarga.format(new Date(p.fecha))}</span>
+    </header>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">Subtotal</th></tr></thead>
+      <tbody>${filas}</tbody>
+      <tfoot><tr><td colspan="3"><strong>Total</strong></td><td class="num"><strong>${euros.format(p.total)}</strong></td></tr></tfoot>
+    </table></div>
+  </article>`;
+}
+
+/* ---------- Arranque ---------- */
+actualizarCamposProducto();
+pintarLineasPedido();
+conectar();
+</script>
+</body>
+</html>
