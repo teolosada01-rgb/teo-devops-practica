@@ -1,0 +1,119 @@
+# Integración continua de la imagen Docker: build -> run -> test -> push
+#
+# - En cada push a una rama feature/** y en cada Pull Request hacia main:
+#   construye la imagen, arranca un contenedor y prueba la API.
+# - Al fusionar en main, además publica la imagen en GitHub Container
+#   Registry (ghcr.io) con las etiquetas "latest" y el hash corto del commit.
+
+name: Docker (build, test y push)
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Construir la imagen
+        run: |
+          docker build \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            -t tienda-api:test .
+
+      - name: Arrancar el contenedor
+        run: docker run -d --name tienda -p 8000:8000 tienda-api:test
+
+      - name: Esperar a que la API responda
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/ && exit 0
+            sleep 1
+          done
+          echo "La API no ha arrancado" && exit 1
+
+      - name: Probar los endpoints principales
+        run: |
+          # 5 productos y 4 usuarios de ejemplo
+          curl -sf http://localhost:8000/productos | python3 -c "import json,sys; d=json.load(sys.stdin); assert len(d)==5, d; print(len(d), 'productos')"
+          curl -sf http://localhost:8000/usuarios  | python3 -c "import json,sys; d=json.load(sys.stdin); assert len(d)==4, d; print(len(d), 'usuarios')"
+          # Códigos de error
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/productos/no-existe)" = "404"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/productos -H 'Content-Type: application/json' -d '{"tipo":"ropa","nombre":"x","precio":1,"stock":1}')" = "422"
+          # Documentación
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/docs)" = "200"
+          echo "Endpoints OK"
+
+      - name: Preparar Python para el cliente
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ejecutar el cliente Python contra el contenedor
+        run: |
+          pip install -r requirements.txt
+          python src/cliente/cliente_api.py http://localhost:8000 | tee salida_cliente.txt
+          ! grep -q "\[FALLO\]" salida_cliente.txt
+
+      - name: Comprobar que el contenedor no se ejecuta como root
+        run: test "$(docker exec tienda whoami)" = "app"
+
+      - name: Logs del contenedor (si algo falla)
+        if: failure()
+        run: docker logs tienda
+
+      - name: Iniciar sesión en GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Etiquetar y publicar la imagen
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          IMAGEN=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker tag tienda-api:test "$IMAGEN:latest"
+          docker tag tienda-api:test "$IMAGEN:${GITHUB_SHA::7}"
+          docker push --all-tags "$IMAGEN"
+          echo "Publicada: $IMAGEN:latest"
+
+  compose:
+    # Extra: API + frontend con docker compose, comunicados por la red interna
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Levantar los dos contenedores
+        run: docker compose up -d --build --wait --wait-timeout 120
+
+      - name: Probar el frontend y el proxy hacia la API
+        run: |
+          # El frontend se sirve en el puerto 8080
+          curl -sf http://localhost:8080/ | grep -q "Peticiones HTTP"
+          # nginx reenvía /api/ al contenedor "api": comunicación entre contenedores
+          curl -sf http://localhost:8080/api/productos | python3 -c "import json,sys; d=json.load(sys.stdin); assert len(d)==5, d; print('Proxy OK:', len(d), 'productos')"
+          # config.js del contenedor apunta al proxy
+          curl -sf http://localhost:8080/config.js | grep -q "/api"
+
+      - name: Logs (si algo falla)
+        if: failure()
+        run: docker compose logs
+
+      - name: Parar los contenedores
+        if: always()
+        run: docker compose down

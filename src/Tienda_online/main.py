@@ -11,12 +11,26 @@ Flujo de una petición:
         -> Services/    lógica de negocio (TiendaService)
         -> models/      clases de dominio (Producto, Usuario, Pedido)
 
-Ejecución (desde la carpeta Tienda_online):
+Ejecución (desde la carpeta src/Tienda_online):
 
     uvicorn main:app --reload                      # solo este equipo
     uvicorn main:app --reload --host 0.0.0.0       # accesible desde la red local
+
+o con Docker (desde la raíz del repositorio, ver README):
+
+    docker build -t tienda-api .
+    docker run -p 8000:8000 tienda-api
+
+Variables de entorno:
+
+    CARGAR_DATOS_EJEMPLO  "true" (por defecto) carga usuarios, productos y pedidos
+                          de ejemplo al arrancar; "false" arranca la tienda vacía.
+    CORS_ORIGINS          orígenes permitidos para el frontend, separados por comas
+                          (por defecto "*", cualquiera).
+    HOST / PORT           solo al ejecutar "python main.py" (por defecto 127.0.0.1:8000).
 """
 
+import os
 from typing import Optional
 
 from fastapi import Body, Depends, FastAPI, Request, Response, status
@@ -42,6 +56,21 @@ from Services import (
 )
 
 # ----------------------------------------------------------------------
+# Configuración por variables de entorno
+# ----------------------------------------------------------------------
+def leer_booleano(nombre: str, por_defecto: bool) -> bool:
+    """Lee una variable de entorno de tipo sí/no ("true", "1", "si"...)."""
+    valor = os.getenv(nombre)
+    if valor is None:
+        return por_defecto
+    return valor.strip().lower() in {"1", "true", "si", "sí", "yes", "on"}
+
+
+CARGAR_DATOS_EJEMPLO = leer_booleano("CARGAR_DATOS_EJEMPLO", True)
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
+
+
+# ----------------------------------------------------------------------
 # Aplicación
 # ----------------------------------------------------------------------
 app = FastAPI(
@@ -62,7 +91,7 @@ app = FastAPI(
 # el navegador. Sin esto el navegador bloquearía las peticiones.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -94,7 +123,8 @@ def cargar_datos_ejemplo(servicio: TiendaService) -> None:
     servicio.realizar_pedido(luis.id, {camiseta.id: 3, vaqueros.id: 1, libro.id: 1})
 
 
-cargar_datos_ejemplo(tienda)
+if CARGAR_DATOS_EJEMPLO:
+    cargar_datos_ejemplo(tienda)
 
 
 def get_tienda() -> TiendaService:
@@ -319,14 +349,13 @@ def listar_pedidos_cliente(
 # Ejecución con el botón ▶ de VS Code (equivale a "uvicorn main:app --reload")
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    import os
-
     import uvicorn
 
     # Trabajar siempre desde la carpeta de este fichero, se lance desde donde se lance
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    # "127.0.0.1" -> solo este ordenador
-    # "0.0.0.0"   -> accesible desde otros equipos de la red (Parte 2.2)
-    HOST = "127.0.0.1"
-    uvicorn.run("main:app", host=HOST, port=8000, reload=True)
+    # HOST "127.0.0.1" -> solo este ordenador
+    # HOST "0.0.0.0"   -> accesible desde otros equipos de la red
+    HOST = os.getenv("HOST", "127.0.0.1")
+    PORT = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host=HOST, port=PORT, reload=True)
