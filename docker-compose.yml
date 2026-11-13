@@ -1,0 +1,25 @@
+# Levanta la API y el frontend juntos (extra de la práctica 3.2).
+#
+#   docker compose up --build
+#
+#   API:       http://localhost:8000/docs
+#   Frontend:  http://localhost:8080
+
+services:
+  api:
+    build: .
+    image: tienda-api:latest
+    ports:
+      - "8000:8000"
+    environment:
+      CARGAR_DATOS_EJEMPLO: "true"
+      CORS_ORIGINS: "*"
+
+  frontend:
+    build: ./src/frontend
+    image: tienda-frontend:latest
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy

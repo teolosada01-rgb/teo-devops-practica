@@ -368,14 +368,16 @@
   </aside>
 </div>
 
+<script src="config.js"></script>
 <script>
 /* =====================================================================
    1. CONFIGURACIÓN
    La dirección de la API se puede cambiar en la cabecera (por ejemplo
    http://192.168.1.34:8000 para usar la API del equipo de un compañero).
+   El valor inicial viene de config.js (en Docker apunta al proxy /api).
    Se recuerda en el navegador para no tener que escribirla cada vez.
    ===================================================================== */
-const URL_POR_DEFECTO = "http://localhost:8000";
+const URL_POR_DEFECTO = window.API_URL_POR_DEFECTO || "http://localhost:8000";
 let API_URL = leerUrlGuardada() || URL_POR_DEFECTO;
 
 function leerUrlGuardada() {
